@@ -207,5 +207,7 @@ logger.info("定时任务已启动，每天早上9点执行基金分析")
 
 
 if __name__ == '__main__':
+    logger.info("FastAPI服务准备启动，监听端口 8000")
     # 启动FastAPI服务
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info("FastAPI服务已启动")
