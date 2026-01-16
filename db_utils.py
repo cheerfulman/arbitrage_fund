@@ -9,6 +9,10 @@ try:
 except ImportError:
     from typing_extensions import TypeVar, List, Optional
 
+# 导入时区相关模块
+from datetime import datetime, date
+import pytz  # 需要确保pytz已安装
+
 # 定义泛型类型变量
 T = TypeVar('T')
 
@@ -141,11 +145,13 @@ class DatabaseManager:
             self.conn.rollback()
             return False
 
+    # 修改save_ai_analysis方法
     def save_ai_analysis(self, analysis_content: str, fund_name: str, fund_code: str) -> bool:
         """保存AI分析结果到数据库"""
         try:
-            # 获取当前日期
-            current_date = datetime.now().date()
+            # 获取当前日期（中国时区）
+            china_tz = pytz.timezone('Asia/Shanghai')
+            current_date = datetime.now(china_tz).date()
     
             self.cursor.execute('''
                 INSERT INTO ai_analyses (analysis_content, fund_name, fund_code, date)
