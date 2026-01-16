@@ -1,0 +1,9 @@
+requests
+dataclasses
+cozepy
+mysql-connector-python
+serverchan-sdk
+fastapi
+uvicorn
+apscheduler
+python-dotenv
