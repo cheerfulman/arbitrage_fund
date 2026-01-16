@@ -35,6 +35,8 @@ services:
       DB_NAME: arbitrage_fund
       DB_USER: admin
       DB_PASSWORD: admin123
+      COZE_API_TOKEN: sat_FJHcWnuwLSEHA6OVCazSF72gvhe56moHxK9XWSnfXETF0oGJdmesdYbXlQpUkCSY
+      COZE_BOT_ID: 7591133708552814643
     volumes:
       - .:/app
     ports:
