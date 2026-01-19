@@ -95,14 +95,6 @@ def run_analysis():
                 # 构建问题，要求返回指定的JSON格式
                 question = (f"{funds_str}\n\n请从以上基金中分析今日是否有适合套利的，")
                 question += f"并详细分析各基金的套利优缺点。从场内份额、溢价率、申购费、开放和赎回状态等多角度分析，并且附上推荐理由和盈利预期多少\n"
-                question += f"请严格按照以下JSON格式返回结果（不要添加任何其他解释性文字）：\n"
-                question += f"[\n"
-                question += f"   {{\n"
-                question += f"     \"fund_name\": \"基金名称\",\n"
-                question += f"     \"fund_code\": \"基金代码\",\n"
-                question += f"     \"analysis_content\": \"核心结论：是否值得套利？（值得/需谨慎）；溢价原因：[短期/长期驱动因素]；溢价抹平预期：[快速/缓慢]（时间周期及逻辑）；未来涨幅：[看好/看衰/中性]（理由）；盈利预期：[估算值]\"\n"
-                question += f"   }}\n"
-                question += f"]\n"
                 question += f"如果没有合适的基金套利机会，请返回：[]"
 
                 logger.info("正在向Coze API发送请求...")

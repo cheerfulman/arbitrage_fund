@@ -39,7 +39,15 @@ class DatabaseManager:
             "port": port,
             "database": database,
             "user": user,
-            "password": password
+            "password": password,
+            "autocommit": True,  # 启用自动提交
+            "pool_name": "fund_arbitrage_pool",  # 连接池名称
+            "pool_size": 5,  # 连接池大小
+            "pool_reset_session": True,  # 重置会话
+            "connect_timeout": 10,  # 连接超时时间
+            "read_timeout": 30,  # 读取超时时间
+            "write_timeout": 30,  # 写入超时时间
+            "buffered": True  # 缓冲查询结果
         }
         self.conn = None
         self.cursor = None
@@ -64,8 +72,29 @@ class DatabaseManager:
             self.conn.close()
         print("✅ 数据库连接已关闭")
 
+    def is_connected(self) -> bool:
+        """检查数据库连接是否有效"""
+        if not self.conn:
+            return False
+        try:
+            # 执行简单查询检查连接是否有效
+            self.conn.ping(reconnect=False)
+            return True
+        except:
+            return False
+
+    def ensure_connection(self) -> bool:
+        """确保数据库连接有效，如果无效则重新连接"""
+        if not self.is_connected():
+            print("⚠️ 数据库连接已断开，正在尝试重新连接...")
+            return self.connect()
+        return True
+
     def create_tables(self) -> bool:
         """创建数据库表"""
+        if not self.ensure_connection():
+            return False
+            
         try:
             # 创建基金数据表
             self.cursor.execute('''
@@ -118,6 +147,9 @@ class DatabaseManager:
 
     def save_funds(self, funds) -> bool:
         """保存基金数据到数据库"""
+        if not self.ensure_connection():
+            return False
+            
         try:
             # 批量插入基金数据
             for fund in funds:
@@ -148,6 +180,9 @@ class DatabaseManager:
     # 修改save_ai_analysis方法
     def save_ai_analysis(self, analysis_content: str, fund_name: str, fund_code: str) -> bool:
         """保存AI分析结果到数据库"""
+        if not self.ensure_connection():
+            return False
+            
         try:
             # 获取当前日期（中国时区）
             china_tz = pytz.timezone('Asia/Shanghai')
@@ -177,6 +212,9 @@ class DatabaseManager:
         :param params: 查询参数
         :return: 模型对象列表
         """
+        if not self.ensure_connection():
+            return []
+            
         try:
             if params:
                 self.cursor.execute(query, params)
@@ -197,4 +235,29 @@ class DatabaseManager:
             return model_objects
         except Exception as e:
             print(f"❌ 查询并映射模型失败：{e}")
+            # 如果是连接错误，尝试重新连接一次
+            if "Lost connection" in str(e) or "2013" in str(e):
+                print("⚠️ 检测到连接错误，尝试重新连接...")
+                if self.connect():
+                    print("✅ 重新连接成功，再次尝试查询...")
+                    try:
+                        if params:
+                            self.cursor.execute(query, params)
+                        else:
+                            self.cursor.execute(query)
+                        results = self.cursor.fetchall()
+                        
+                        model_objects = []
+                        for row in results:
+                            # 确保日期字段正确处理
+                            if 'date' in row and hasattr(model_class, 'date'):
+                                # 如果数据库返回的是datetime对象，转换为date
+                                if isinstance(row['date'], datetime):
+                                    row['date'] = row['date'].date()
+                            model_obj = model_class(**row)
+                            model_objects.append(model_obj)
+                        
+                        return model_objects
+                    except Exception as e2:
+                        print(f"❌ 重新查询失败：{e2}")
             return []
