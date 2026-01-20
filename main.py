@@ -70,13 +70,15 @@ def run_analysis():
         if data:
             # 创建LOFDataHandler实例，按照溢价率倒序排序
             lof_handler = LOFDataHandler(data, sort_by='discount_rt')
-            topFiveLof = lof_handler.get_lof_struct_array()
-
+            # 爬出的所有数据
+            funds_list = lof_handler.get_fund_struct_array()
             # 将基金数据保存到数据库
-            db_manager.save_funds(topFiveLof)
+            db_manager.save_funds(funds_list)
 
+            # 有可能值得套利的基金，需要送给ai分析的部分
+            deserve_funds = lof_handler.get_deserve_arbitrage_fund()
             # 将topFiveLof转换为字符串
-            funds_str = format_lof_funds(topFiveLof)
+            funds_str = format_lof_funds(deserve_funds)
 
             # 调用Coze API
             try:

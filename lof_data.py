@@ -232,7 +232,38 @@ class LOFDataHandler:
         except (ValueError, TypeError):
             return False
     
-    def get_lof_struct_array(self):
+    def get_fund_struct_array(self):
+        """获取只包含特定字段的LOFFund结构体数组"""
+        struct_array = []
+        for lof in self.lof_list:
+            # 创建LOFFund对象，包含所有指定字段
+            fund = LOFFund(
+                fund_id=lof.get('fund_id', ''),
+                fund_nm=lof.get('fund_nm', ''),
+                price=lof.get('price', ''),
+                pre_close=lof.get('pre_close', ''),
+                price_dt=lof.get('price_dt', ''),
+                increase_rt=lof.get('increase_rt', ''),
+                volume=lof.get('volume', ''),
+                amount=lof.get('amount', ''),
+                amount_incr=lof.get('amount_incr', ''),
+                fund_nav=lof.get('fund_nav', ''),
+                estimate_value=lof.get('estimate_value', ''),
+                discount_rt=lof.get('discount_rt', ''),
+                index_id=lof.get('index_id', ''),
+                index_nm=lof.get('index_nm', ''),
+                index_increase_rt=lof.get('index_increase_rt', ''),
+                apply_fee=lof.get('apply_fee', ''),
+                apply_status=lof.get('apply_status', ''),
+                redeem_fee=lof.get('redeem_fee', ''),
+                redeem_status=lof.get('redeem_status', ''),
+                turnover_rt=lof.get('turnover_rt', ''),
+                nav_dt = lof.get('nav_dt')
+            )
+            struct_array.append(fund)
+        return struct_array
+
+    def get_deserve_arbitrage_fund(self):
         """获取只包含特定字段的LOFFund结构体数组"""
         struct_array = []
         for lof in self.lof_list:
