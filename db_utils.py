@@ -139,7 +139,8 @@ class DatabaseManager:
                     nav_dt VARCHAR(20) COMMENT '净值日期',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
                     update_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后更新时间',
-                    date DATE NOT NULL COMMENT '分析数据的日期'
+                    date DATE NOT NULL COMMENT '分析数据的日期',
+                    UNIQUE KEY unique_fund_date (fund_code, date) COMMENT '基金代码和日期的唯一索引，防止重复数据'
                 )
             ''')
 
