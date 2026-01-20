@@ -6,7 +6,7 @@ import os
 load_dotenv()
 
 # 其他导入保持不变
-from lof_data import fetch_lof_data, LOFDataHandler
+from lof_data import fetch_all_fund_data, LOFDataHandler
 from coze_api import CozeAPIClient
 from db_utils import DatabaseManager, AIAnalysis
 from fastapi import FastAPI, HTTPException
@@ -46,7 +46,7 @@ def format_lof_funds(funds):
     result = "以下是折价率最高的5只LOF基金信息：\n"
     for i, fund in enumerate(funds, 1):
         result += f"\n{i}. 基金基本信息："
-        result += f"\n   基金代码：{fund.fund_id}, 基金名称：{fund.fund_nm}"
+        result += f"\n   基金代码：{fund.fund_id}，基金名称：{fund.fund_nm}"
         result += f"\n   现价：{fund.price}, 昨天价格：{fund.pre_close}, 净值日期：{fund.price_dt}"
         result += f"\n   涨幅：{fund.increase_rt}, 当日成交：{fund.volume}（万）"
         result += f"\n   场内份额：{fund.amount}（万份）, 场内新增：{fund.amount_incr}（万份）"
@@ -64,13 +64,13 @@ def run_analysis():
     logger.info(f"开始执行基金分析任务，当前时间：{datetime.now()}")
     
     try:
-        # 获取LOF基金数据
-        data = fetch_lof_data()
+        # 获取LOF+QDII基金数据
+        data = fetch_all_fund_data()
 
         if data:
             # 创建LOFDataHandler实例，按照溢价率倒序排序
             lof_handler = LOFDataHandler(data, sort_by='discount_rt')
-            topFiveLof = lof_handler.get_lof_struct_array()[:5]
+            topFiveLof = lof_handler.get_lof_struct_array()
 
             # 将基金数据保存到数据库
             db_manager.save_funds(topFiveLof)
@@ -92,11 +92,26 @@ def run_analysis():
 
                 client = CozeAPIClient(api_token=coze_api_token, bot_id=bot_id, user_id=user_id)
 
-                # 构建问题，要求返回指定的JSON格式
-                question = (f"{funds_str}\n\n请从以上基金中分析今日是否有适合套利的，")
-                question += f"并详细分析各基金的套利优缺点。从场内份额、溢价率、申购费、开放和赎回状态等多角度分析，并且附上推荐理由和盈利预期多少\n"
-                question += f"如果没有合适的基金套利机会，请返回：[]\n"
-                question += f"如果你是markdown大师，使用markdown的格式返回结果"
+                # 构建问题，要求返回JSON格式
+                question = (f"{funds_str}\n\n作为资深基金套利分析师，请对以上基金进行详细的套利机会分析，严格遵循以下要求：\n\n")
+                question += f"## 分析框架\n"
+                question += f"1. **套利机会判断**：明确指出每只基金是否存在套利机会\n"
+                question += f"2. **核心指标分析**：详细分析关键套利指标（溢价率/折价率、场内份额、成交量、流动性、申赎状态）\n"
+                question += f"3. **套利策略**：说明具体的套利方法\n"
+                question += f"4. **成本与盈利预期**：计算套利成本，给出明确的盈利空间预测\n"
+                question += f"5. **风险提示**：重点提示各类风险\n"
+                question += f"6. **操作建议**：给出清晰的操作步骤和时机建议\n\n"
+                question += f"## 格式要求\n"
+                question += f"- 严格返回JSON格式，不要包含任何其他文本或解释\n"
+                question += f"- 返回一个JSON数组，数组中的每个元素是一个基金分析对象\n"
+                question += f"- 每个基金分析对象必须包含以下字段：\n"
+                question += f"  - fund_code: 基金代码（字符串类型）\n"
+                question += f"  - fund_name: 基金名称（字符串类型）\n"
+                question += f"  - analysis_content: 详细的分析结果（字符串类型，可包含Markdown格式）\n"
+                question += f"  - nav_dt: 净值日期（字符串类型，格式为YYYY-MM-DD）\n"
+                question += f"- 分析内容应详细全面，包括套利逻辑、盈利预期、优缺点分析等\n"
+                question += f"- 如果没有合适的套利机会，请返回：[]\n"
+                question += f"- 请确保JSON格式正确，可被标准JSON解析器解析\n\n"
 
                 logger.info("正在向Coze API发送请求...")
                 response = client.send_message(question)
@@ -113,12 +128,13 @@ def run_analysis():
                     # 如果有套利机会，保存每只基金的分析结果
                     if isinstance(ai_results, list) and len(ai_results) > 0:
                         for result in ai_results:
-                            if all(key in result for key in ['fund_name', 'fund_code', 'analysis_content']):
+                            if all(key in result for key in ['fund_name', 'fund_code', 'analysis_content', 'nav_dt']):
                                 # 部分1：解析成功时的调用
                                 db_manager.save_ai_analysis(
                                     analysis_content=result['analysis_content'],
                                     fund_name=result['fund_name'],  # 删除了token_count参数
-                                    fund_code=result['fund_code']
+                                    fund_code=result['fund_code'],
+                                    nav_dt= result['nav_dt']
                                 )
 
                         logger.info(f"成功保存 {len(ai_results)} 条AI分析结果")
@@ -127,13 +143,6 @@ def run_analysis():
 
                 except json.JSONDecodeError as e:
                     logger.error(f"解析AI返回的JSON格式失败：{e}")
-                    # 如果JSON解析失败，保存原始响应
-                    db_manager.save_ai_analysis(
-                        analysis_content=response['content'],
-                        fund_name="",
-                        fund_code=""
-                    )
-
             except Exception as e:
                 logger.error(f"调用Coze API时发生错误：{e}")
         else:
@@ -154,14 +163,40 @@ async def get_ai_analyses(date: str):
         datetime.strptime(date, "%Y-%m-%d")
         
         # 从数据库获取数据并直接映射到AIAnalysis模型
-        query = "SELECT * FROM ai_analyses WHERE date = %s"
-        ai_analyses = db_manager.query_to_model(AIAnalysis, query, (date,))
+        ai_query = "SELECT * FROM ai_analyses WHERE date = %s"
+        ai_analyses = db_manager.query_to_model(AIAnalysis, ai_query, (date,))
+
+        # 如果没有AI分析结果，直接返回
+        if not ai_analyses:
+            return {
+                "status": "success",
+                "date": date,
+                "count": 0,
+                "data": []
+            }
+        
+        # 调用DAO层方法获取当天所有基金信息，使用nav_dt字段
+        fund_dict = db_manager.get_funds_by_date(date)
 
         data_list = []
         for ai_analyse in ai_analyses:
+            # 从字典中获取基金信息，避免重复查询
+            fund_info = fund_dict.get((ai_analyse.fund_code), {})
+            
+            # 设置默认值
+            estimate_value = fund_info.get('estimate_value', '')
+            price = fund_info.get('price', '')
+            apply_status = fund_info.get('apply_status', '')
+
             data_list.append({
                 "data": ai_analyse.analysis_content,
                 "title": f"{ai_analyse.fund_name}({ai_analyse.fund_code})",
+                "fund_name": ai_analyse.fund_name,
+                "fund_code": ai_analyse.fund_code,
+                "nav_dt": getattr(ai_analyse, 'nav_dt', ''), # 净值日期
+                "estimate_value": estimate_value, # t-1估值
+                "price": price, # 现价
+                "apply_status": apply_status # 申购状态
             })
 
         return {
@@ -204,3 +239,4 @@ if __name__ == '__main__':
     # 启动FastAPI服务
     uvicorn.run(app, host="0.0.0.0", port=8000)
     logger.info("FastAPI服务已启动")
+    

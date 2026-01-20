@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from httpx import get
 import requests
 import json
 
@@ -28,6 +29,7 @@ class LOFFund:
     redeem_fee: str  # 赎回费
     redeem_status: str  # 赎回状态
     turnover_rt: str  # 换手率
+    nav_dt: str # 净值日期
 
 class LOFDataHandler:
     """LOF基金数据处理类，用于接收和处理HTTP请求返回的LOF基金数据"""
@@ -199,34 +201,68 @@ class LOFDataHandler:
         """获取页面信息"""
         return self.page_info
 
+    def _is_qualified_fund(self, lof):
+        """
+        检查基金是否符合条件：必须开放申购、开放赎回，且溢价率>4%
+        
+        Args:
+            lof: 基金数据字典
+            
+        Returns:
+            bool: 是否符合条件
+        """
+        # 检查申购状态，只要不是暂停申购即可
+        apply_status = lof.get('apply_status', '')
+        if apply_status == '暂停申购':
+            return False
+        
+        # 检查赎回状态
+        redeem_status = lof.get('redeem_status', '')
+        if redeem_status != '开放赎回':
+            return False
+        
+        # 检查溢价率
+        discount_rt = lof.get('discount_rt', '')
+        try:
+            # 移除百分号并转换为浮点数
+            if isinstance(discount_rt, str):
+                discount_rt = discount_rt.replace('%', '')
+            discount_rt_value = float(discount_rt)
+            return discount_rt_value > 4
+        except (ValueError, TypeError):
+            return False
+    
     def get_lof_struct_array(self):
         """获取只包含特定字段的LOFFund结构体数组"""
         struct_array = []
         for lof in self.lof_list:
-            # 创建LOFFund对象，包含所有指定字段
-            fund = LOFFund(
-                fund_id=lof.get('fund_id', ''),
-                fund_nm=lof.get('fund_nm', ''),
-                price=lof.get('price', ''),
-                pre_close=lof.get('pre_close', ''),
-                price_dt=lof.get('price_dt', ''),
-                increase_rt=lof.get('increase_rt', ''),
-                volume=lof.get('volume', ''),
-                amount=lof.get('amount', ''),
-                amount_incr=lof.get('amount_incr', ''),
-                fund_nav=lof.get('fund_nav', ''),
-                estimate_value=lof.get('estimate_value', ''),
-                discount_rt=lof.get('discount_rt', ''),
-                index_id=lof.get('index_id', ''),
-                index_nm=lof.get('index_nm', ''),
-                index_increase_rt=lof.get('index_increase_rt', ''),
-                apply_fee=lof.get('apply_fee', ''),
-                apply_status=lof.get('apply_status', ''),
-                redeem_fee=lof.get('redeem_fee', ''),
-                redeem_status=lof.get('redeem_status', ''),
-                turnover_rt=lof.get('turnover_rt', '')
-            )
-            struct_array.append(fund)
+            # 检查基金是否符合条件
+            if self._is_qualified_fund(lof):
+                # 创建LOFFund对象，包含所有指定字段
+                fund = LOFFund(
+                    fund_id=lof.get('fund_id', ''),
+                    fund_nm=lof.get('fund_nm', ''),
+                    price=lof.get('price', ''),
+                    pre_close=lof.get('pre_close', ''),
+                    price_dt=lof.get('price_dt', ''),
+                    increase_rt=lof.get('increase_rt', ''),
+                    volume=lof.get('volume', ''),
+                    amount=lof.get('amount', ''),
+                    amount_incr=lof.get('amount_incr', ''),
+                    fund_nav=lof.get('fund_nav', ''),
+                    estimate_value=lof.get('estimate_value', ''),
+                    discount_rt=lof.get('discount_rt', ''),
+                    index_id=lof.get('index_id', ''),
+                    index_nm=lof.get('index_nm', ''),
+                    index_increase_rt=lof.get('index_increase_rt', ''),
+                    apply_fee=lof.get('apply_fee', ''),
+                    apply_status=lof.get('apply_status', ''),
+                    redeem_fee=lof.get('redeem_fee', ''),
+                    redeem_status=lof.get('redeem_status', ''),
+                    turnover_rt=lof.get('turnover_rt', ''),
+                    nav_dt = lof.get('nav_dt')
+                )
+                struct_array.append(fund)
         return struct_array
 
 
@@ -265,26 +301,118 @@ def fetch_lof_data():
         return None
 
 
-if __name__ == '__main__':
+def fetch_qdii_data():
+    url = 'https://www.jisilu.cn/data/qdii/qdii_list/E?___jsl=LST___t=1768899909768&rp=22&page=1'
+    
+    headers = {
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8,zh-TW;q=0.7',
+        'priority': 'u=1, i',
+        'referer': 'https://www.jisilu.cn/data/qdii/',
+        'sec-ch-ua': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest'
+    }
+    
+    cookies = {
+        'kbzw__Session': 'uujg96a2vmodsijvd10b9bbe65',
+        'Hm_lvt_164fe01b1433a19b507595a43bf58262': '1767022643',
+        'HMACCOUNT': 'EAB3FAD68D80D2E8',
+        'kbz_newcookie': '1',
+        'Hm_lpvt_164fe01b1433a19b507595a43bf58262': '1768839049'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, cookies=cookies)
+        response.raise_for_status()  # 检查请求是否成功
+        return response.json()  # 返回JSON响应数据
+    except requests.exceptions.RequestException as e:
+        print(f'QDII请求发生错误: {e}')
+        return None
+
+
+def merge_fund_data(lof_data, qdii_data):
+    """
+    合并LOF和QDII基金数据
+    
+    Args:
+        lof_data: LOF基金数据
+        qdii_data: QDII基金数据
+        
+    Returns:
+        合并后的数据，格式与原始数据相同
+    """
+    if not lof_data:
+        return qdii_data
+    if not qdii_data:
+        return lof_data
+    
+    merged_data = {
+        'page': 1,
+        'total': 1,
+        'records': 0,
+        'rows': []
+    }
+    
+    # 添加LOF基金数据
+    if 'rows' in lof_data:
+        merged_data['rows'].extend(lof_data['rows'])
+    
+    # 添加QDII基金数据
+    if 'rows' in qdii_data:
+        merged_data['rows'].extend(qdii_data['rows'])
+    
+    # 更新记录数
+    merged_data['records'] = len(merged_data['rows'])
+    
+    return merged_data
+
+
+def fetch_all_fund_data():
+    """
+    获取所有基金数据，包括LOF和QDII
+    
+    Returns:
+        合并后的基金数据
+    """
     # 获取LOF基金数据
-    data = fetch_lof_data()
+    print('正在获取LOF基金数据...')
+    lof_data = fetch_lof_data()
+    
+    # 获取QDII基金数据
+    print('正在获取QDII基金数据...')
+    qdii_data = fetch_qdii_data()
+    
+    # 合并数据
+    print('正在合并数据...')
+    return merge_fund_data(lof_data, qdii_data)
+
+
+if __name__ == '__main__':
+    # 获取所有基金数据（LOF + QDII）
+    data = fetch_all_fund_data()
     
     if data:
         print('请求成功，正在处理数据...')
         print('-' * 60)
         
         # 创建LOFDataHandler实例，按照溢价率倒序排序
-        lof_handler = LOFDataHandler(data, sort_by='discount_rt')
+        fund_handler = LOFDataHandler(data, sort_by='discount_rt')
         
         # 打印所有可用字段（用于调试）
-        lof_handler.print_all_fields()
+        fund_handler.print_all_fields()
         print('-' * 60)
         
-        # 打印LOF基金列表，按照用户指定的JSON字段显示
-        lof_handler.print_lof_list()
+        # 打印基金列表，按照用户指定的JSON字段显示
+        fund_handler.print_lof_list()
         
         # 获取并打印页面信息
-        page_info = lof_handler.get_page_info()
+        page_info = fund_handler.get_page_info()
         total_width = 10 + 20 + 8 + 10 + 12 + 10 + 15 + 12 + 12 + 10 + 15 + 12 + 12 + 15 + 12 + 15 + 15 + 12 + 15 + 10
         print("-" * total_width)
         
@@ -292,11 +420,11 @@ if __name__ == '__main__':
         if isinstance(page_info, dict):
             current_page = page_info.get('page', 1)
             total_pages = page_info.get('total', 1)
-            records = page_info.get('records', len(lof_handler.get_lof_list()))
+            records = page_info.get('records', len(fund_handler.get_lof_list()))
             print(f"dict 页面信息：当前页 {current_page}/{total_pages}，共 {records} 条记录")
         elif isinstance(page_info, (int, str)):
-            print(f"str 页面信息：当前页 {page_info}/1，共 {len(lof_handler.get_lof_list())} 条记录")
+            print(f"str 页面信息：当前页 {page_info}/1，共 {len(fund_handler.get_lof_list())} 条记录")
         else:
-            print(f"页面信息：共 {len(lof_handler.get_lof_list())} 条记录")
+            print(f"页面信息：共 {len(fund_handler.get_lof_list())} 条记录")
     else:
         print('请求失败')

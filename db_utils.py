@@ -24,6 +24,7 @@ class AIAnalysis:
     analysis_content: str  # AI分析内容
     fund_name: str  # 基金名称（删除了token_count字段）
     fund_code: str  # 基金代码
+    nav_dt: str  # 净值日期
     created_at: datetime  # 创建时间
     update_at: datetime  # 更新时间
     date: date  # 分析日期
@@ -47,7 +48,8 @@ class DatabaseManager:
             "connect_timeout": 10,  # 连接超时时间
             "read_timeout": 30,  # 读取超时时间
             "write_timeout": 30,  # 写入超时时间
-            "buffered": True  # 缓冲查询结果
+            "buffered": True,  # 缓冲查询结果
+            "charset": "utf8mb4"  # 添加字符集参数，解决中文乱码问题
         }
         self.conn = None
         self.cursor = None
@@ -105,6 +107,7 @@ class DatabaseManager:
                     price VARCHAR(20) COMMENT '基金当前价格',
                     pre_close VARCHAR(20) COMMENT '前收盘价',
                     price_dt VARCHAR(20) COMMENT '价格日期',
+                    nav_dt VARCHAR(20) COMMENT '净值日期',
                     increase_rt VARCHAR(20) COMMENT '涨幅比例',
                     volume VARCHAR(20) COMMENT '成交量',
                     amount VARCHAR(20) COMMENT '成交金额',
@@ -120,7 +123,9 @@ class DatabaseManager:
                     redeem_fee VARCHAR(20) COMMENT '赎回费率',
                     redeem_status VARCHAR(20) COMMENT '赎回状态',
                     turnover_rt VARCHAR(20) COMMENT '换手率',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间'
+                    date DATE COMMENT '数据插入日期',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+                    UNIQUE KEY unique_fund (fund_id, fund_nm, nav_dt) COMMENT '基金代码、名称和净值日期的唯一索引'
                 )
             ''')
 
@@ -131,6 +136,7 @@ class DatabaseManager:
                     analysis_content TEXT NOT NULL COMMENT 'AI分析的完整内容',
                     fund_name VARCHAR(100) COMMENT '分析的基金名称',
                     fund_code varchar(20) COMMENT '分析的基金代码',
+                    nav_dt VARCHAR(20) COMMENT '净值日期',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
                     update_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后更新时间',
                     date DATE NOT NULL COMMENT '分析数据的日期'
@@ -156,17 +162,38 @@ class DatabaseManager:
                 self.cursor.execute('''
                     INSERT INTO funds (
                         fund_id, fund_nm, price, pre_close, price_dt,
-                        increase_rt, volume, amount, amount_incr,
+                        nav_dt, increase_rt, volume, amount, amount_incr,
                         fund_nav, estimate_value, discount_rt, index_id,
                         index_nm, index_increase_rt, apply_fee, apply_status,
-                        redeem_fee, redeem_status, turnover_rt
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        redeem_fee, redeem_status, turnover_rt, date
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        price = VALUES(price),
+                        pre_close = VALUES(pre_close),
+                        price_dt = VALUES(price_dt),
+                        increase_rt = VALUES(increase_rt),
+                        volume = VALUES(volume),
+                        amount = VALUES(amount),
+                        amount_incr = VALUES(amount_incr),
+                        fund_nav = VALUES(fund_nav),
+                        estimate_value = VALUES(estimate_value),
+                        discount_rt = VALUES(discount_rt),
+                        index_id = VALUES(index_id),
+                        index_nm = VALUES(index_nm),
+                        index_increase_rt = VALUES(index_increase_rt),
+                        apply_fee = VALUES(apply_fee),
+                        apply_status = VALUES(apply_status),
+                        redeem_fee = VALUES(redeem_fee),
+                        redeem_status = VALUES(redeem_status),
+                        turnover_rt = VALUES(turnover_rt),
+                        date = VALUES(date),
+                        created_at = CURRENT_TIMESTAMP
                 ''', (
                     fund.fund_id, fund.fund_nm, fund.price, fund.pre_close, fund.price_dt,
-                    fund.increase_rt, fund.volume, fund.amount, fund.amount_incr,
+                    fund.nav_dt, fund.increase_rt, fund.volume, fund.amount, fund.amount_incr,
                     fund.fund_nav, fund.estimate_value, fund.discount_rt, fund.index_id,
                     fund.index_nm, fund.index_increase_rt, fund.apply_fee, fund.apply_status,
-                    fund.redeem_fee, fund.redeem_status, fund.turnover_rt
+                    fund.redeem_fee, fund.redeem_status, fund.turnover_rt, datetime.now().date()
                 ))
 
             self.conn.commit()
@@ -178,23 +205,29 @@ class DatabaseManager:
             return False
 
     # 修改save_ai_analysis方法
-    def save_ai_analysis(self, analysis_content: str, fund_name: str, fund_code: str) -> bool:
+    def save_ai_analysis(self, analysis_content: str, fund_name: str, fund_code: str, nav_dt: str = None, analysis_date: date = None) -> bool:
         """保存AI分析结果到数据库"""
         if not self.ensure_connection():
             return False
             
         try:
-            # 获取当前日期（中国时区）
-            china_tz = pytz.timezone('Asia/Shanghai')
-            current_date = datetime.now(china_tz).date()
+            # 如果没有传入nav_dt，使用当前日期
+            if not nav_dt:
+                nav_dt = datetime.now().date()
+            
+            # 如果没有传入analysis_date，使用当前日期
+            if not analysis_date:
+                analysis_date = datetime.now().date()
     
             self.cursor.execute('''
-                INSERT INTO ai_analyses (analysis_content, fund_name, fund_code, date)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO ai_analyses (analysis_content, fund_name, fund_code, nav_dt, date)
+                VALUES (%s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE 
                     analysis_content = VALUES(analysis_content),
-                    fund_name = VALUES(fund_name)
-            ''', (analysis_content, fund_name, fund_code, current_date))
+                    fund_name = VALUES(fund_name),
+                    nav_dt = VALUES(nav_dt),
+                    date = VALUES(date)
+            ''', (analysis_content, fund_name, fund_code, nav_dt, analysis_date))
     
             self.conn.commit()
             print("✅ AI分析结果保存/更新成功！")
@@ -261,3 +294,63 @@ class DatabaseManager:
                     except Exception as e2:
                         print(f"❌ 重新查询失败：{e2}")
             return []
+    
+    def get_funds_by_date(self, date: str) -> dict:
+        """
+        根据数据插入日期获取基金信息，返回字典格式
+        :param date: 数据插入日期
+        :return: 基金信息字典，以(fund_id, fund_nm)为键
+        """
+        if not self.ensure_connection():
+            return {}
+        
+        try:
+            # 查询指定插入日期的所有基金信息
+            query = """
+                SELECT fund_id, fund_nm, estimate_value, price, apply_status 
+                FROM funds 
+                WHERE date = %s
+            """
+            
+            self.cursor.execute(query, (date,))
+            results = self.cursor.fetchall()
+            
+            # 将结果构建成字典
+            fund_dict = {}
+            for fund in results:
+                fund_dict[fund['fund_id']] = fund
+            
+            return fund_dict
+        except Exception as e:
+            print(f"❌ 根据插入日期查询基金信息失败：{e}")
+            return {}
+    
+    def get_funds_by_nav_dt(self, nav_dt: str) -> dict:
+        """
+        根据净值日期获取基金信息，返回字典格式
+        :param nav_dt: 净值日期
+        :return: 基金信息字典，以(fund_id, fund_nm)为键
+        """
+        if not self.ensure_connection():
+            return {}
+        
+        try:
+            # 查询指定净值日期的所有基金信息
+            query = """
+                SELECT fund_id, fund_nm, estimate_value, price, apply_status 
+                FROM funds 
+                WHERE nav_dt = %s
+            """
+            
+            self.cursor.execute(query, (nav_dt,))
+            results = self.cursor.fetchall()
+            
+            # 将结果构建成字典
+            fund_dict = {}
+            for fund in results:
+                fund_dict[(fund['fund_id'], fund['fund_nm'])] = fund
+            
+            return fund_dict
+        except Exception as e:
+            print(f"❌ 根据净值日期查询基金信息失败：{e}")
+            return {}
