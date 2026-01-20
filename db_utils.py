@@ -195,7 +195,7 @@ class DatabaseManager:
                     fund.nav_dt, fund.increase_rt, fund.volume, fund.amount, fund.amount_incr,
                     fund.fund_nav, fund.estimate_value, fund.discount_rt, fund.index_id,
                     fund.index_nm, fund.index_increase_rt, fund.apply_fee, fund.apply_status,
-                    fund.redeem_fee, fund.redeem_status, fund.turnover_rt, datetime.now().date()
+                    fund.redeem_fee, fund.redeem_status, fund.turnover_rt, datetime.now(pytz.timezone('Asia/Shanghai')).date()
                 ))
 
             self.conn.commit()
@@ -213,13 +213,13 @@ class DatabaseManager:
             return False
             
         try:
-            # 如果没有传入nav_dt，使用当前日期
+            # 如果没有传入nav_dt，使用当前日期（中国时区）
             if not nav_dt:
-                nav_dt = datetime.now().date()
+                nav_dt = datetime.now(pytz.timezone('Asia/Shanghai')).date()
             
-            # 如果没有传入analysis_date，使用当前日期
+            # 如果没有传入analysis_date，使用当前日期（中国时区）
             if not analysis_date:
-                analysis_date = datetime.now().date()
+                analysis_date = datetime.now(pytz.timezone('Asia/Shanghai')).date()
     
             self.cursor.execute('''
                 INSERT INTO ai_analyses (analysis_content, fund_name, fund_code, nav_dt, date)
