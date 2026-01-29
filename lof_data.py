@@ -367,20 +367,58 @@ def fetch_qdii_data():
         return None
 
 
-def merge_fund_data(lof_data, qdii_data):
+def fetch_product_data():
+    url = 'https://www.jisilu.cn/data/qdii/qdii_list/C?___jsl=LST___t=1769673055043&rp=22&page=1'
+    
+    headers = {
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8,zh-TW;q=0.7',
+        'priority': 'u=1, i',
+        'referer': 'https://www.jisilu.cn/data/qdii/',
+        'sec-ch-ua': '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest'
+    }
+    
+    cookies = {
+        'kbzw__Session': 'uujg96a2vmodsijvd10b9bbe65',
+        'HMACCOUNT': 'EAB3FAD68D80D2E8',
+        'kbz_newcookie': '1',
+        'Hm_lvt_164fe01b1433a19b507595a43bf58262': '1769672869',
+        'Hm_lpvt_164fe01b1433a19b507595a43bf58262': '1769672937'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, cookies=cookies)
+        response.raise_for_status()  # 检查请求是否成功
+        return response.json()  # 返回JSON响应数据
+    except requests.exceptions.RequestException as e:
+        print(f'Product请求发生错误: {e}')
+        return None
+
+
+def merge_fund_data(lof_data, qdii_data, product_data):
     """
-    合并LOF和QDII基金数据
+    合并LOF、QDII和Product基金数据
     
     Args:
         lof_data: LOF基金数据
         qdii_data: QDII基金数据
+        product_data: Product基金数据
         
     Returns:
         合并后的数据，格式与原始数据相同
     """
-    if not lof_data:
+    if not lof_data and not qdii_data:
+        return product_data
+    if not lof_data and not product_data:
         return qdii_data
-    if not qdii_data:
+    if not qdii_data and not product_data:
         return lof_data
     
     merged_data = {
@@ -398,6 +436,10 @@ def merge_fund_data(lof_data, qdii_data):
     if 'rows' in qdii_data:
         merged_data['rows'].extend(qdii_data['rows'])
     
+    # 添加Product基金数据
+    if 'rows' in product_data:
+        merged_data['rows'].extend(product_data['rows'])
+    
     # 更新记录数
     merged_data['records'] = len(merged_data['rows'])
     
@@ -406,26 +448,32 @@ def merge_fund_data(lof_data, qdii_data):
 
 def fetch_all_fund_data():
     """
-    获取所有基金数据，包括LOF和QDII
+    获取所有基金数据，包括LOF、QDII和Product
     
     Returns:
         合并后的基金数据
     """
-    # 获取LOF基金数据
-    print('正在获取LOF基金数据...')
-    lof_data = fetch_lof_data()
+    from concurrent.futures import ThreadPoolExecutor
     
-    # 获取QDII基金数据
-    print('正在获取QDII基金数据...')
-    qdii_data = fetch_qdii_data()
+    # 使用线程池并发获取数据
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        # 提交三个任务
+        lof_future = executor.submit(fetch_lof_data)
+        qdii_future = executor.submit(fetch_qdii_data)
+        product_future = executor.submit(fetch_product_data)
+        
+        # 等待所有任务完成并获取结果
+        lof_data = lof_future.result()
+        qdii_data = qdii_future.result()
+        product_data = product_future.result()
     
     # 合并数据
     print('正在合并数据...')
-    return merge_fund_data(lof_data, qdii_data)
+    return merge_fund_data(lof_data, qdii_data, product_data)
 
 
 if __name__ == '__main__':
-    # 获取所有基金数据（LOF + QDII）
+    # 获取所有基金数据（LOF + QDII + Product）
     data = fetch_all_fund_data()
     
     if data:
