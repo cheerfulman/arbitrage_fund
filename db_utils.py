@@ -51,7 +51,6 @@ class DatabaseManager:
             "buffered": True,  # 缓冲查询结果
             "charset": "utf8mb4",  # 添加字符集参数，解决中文乱码问题
             "time_zone": "+08:00",  # 设置时区为中国时区（UTC+8）
-            "pool_timeout": 30  # 连接池获取连接的超时时间
         }
         self.conn = None
         self.cursor = None
