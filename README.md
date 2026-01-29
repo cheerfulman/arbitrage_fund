@@ -253,6 +253,15 @@ scheduler.add_job(run_analysis, 'cron', hour=9, minute=0)
 - 该接口返回的AI分析结果为Markdown格式
 - 建议在前端使用Markdown解析器渲染分析结果
 
+**curl命令示例**：
+```bash
+# 获取AI分析结果示例
+curl -X GET "http://localhost:8000/api/ai-analyses/2026-01-29" -H "Content-Type: application/json"
+
+# 获取其他日期的分析结果示例
+curl -X GET "http://localhost:8000/api/ai-analyses/2026-01-20" -H "Content-Type: application/json"
+```
+
 #### 7.2.2 手动触发分析任务
 
 **接口名称**：手动触发分析任务
@@ -294,6 +303,12 @@ scheduler.add_job(run_analysis, 'cron', hour=9, minute=0)
 - 该接口为异步执行，调用后立即返回，分析任务在后台执行
 - 建议不要频繁调用该接口，避免给服务器带来过大压力
 - 分析任务执行时间取决于数据量和AI分析速度，一般需要1-5分钟
+
+**curl命令示例**：
+```bash
+# 手动触发分析任务示例
+curl -X POST "http://localhost:8000/api/trigger-analysis" -H "Content-Type: application/json"
+```
 
 ## 8. 核心功能模块
 

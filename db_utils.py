@@ -50,7 +50,7 @@ class DatabaseManager:
             "write_timeout": 30,  # 写入超时时间
             "buffered": True,  # 缓冲查询结果
             "charset": "utf8mb4",  # 添加字符集参数，解决中文乱码问题
-            "time_zone": "+08:00",  # 设置时区为中国时区（UTC+8）
+            "time_zone": "+08:00"  # 设置时区为中国时区（UTC+8）
         }
         self.conn = None
         self.cursor = None
