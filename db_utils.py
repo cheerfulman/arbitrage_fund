@@ -43,14 +43,15 @@ class DatabaseManager:
             "password": password,
             "autocommit": True,  # 启用自动提交
             "pool_name": "fund_arbitrage_pool",  # 连接池名称
-            "pool_size": 5,  # 连接池大小
+            "pool_size": 20,  # 连接池大小，从5增加到20
             "pool_reset_session": True,  # 重置会话
             "connect_timeout": 10,  # 连接超时时间
             "read_timeout": 30,  # 读取超时时间
             "write_timeout": 30,  # 写入超时时间
             "buffered": True,  # 缓冲查询结果
             "charset": "utf8mb4",  # 添加字符集参数，解决中文乱码问题
-            "time_zone": "+08:00"  # 设置时区为中国时区（UTC+8）
+            "time_zone": "+08:00",  # 设置时区为中国时区（UTC+8）
+            "pool_timeout": 30  # 连接池获取连接的超时时间
         }
         self.conn = None
         self.cursor = None
@@ -80,8 +81,8 @@ class DatabaseManager:
         if not self.conn:
             return False
         try:
-            # 执行简单查询检查连接是否有效
-            self.conn.ping(reconnect=False)
+            # 执行简单查询检查连接是否有效，允许自动重连
+            self.conn.ping(reconnect=True)
             return True
         except:
             return False
@@ -90,6 +91,14 @@ class DatabaseManager:
         """确保数据库连接有效，如果无效则重新连接"""
         if not self.is_connected():
             print("⚠️ 数据库连接已断开，正在尝试重新连接...")
+            # 先尝试关闭现有连接，避免连接池耗尽
+            if self.conn:
+                try:
+                    self.conn.close()
+                    print("⚠️ 已关闭现有连接")
+                except:
+                    pass
+            # 重新连接
             return self.connect()
         return True
 
@@ -350,7 +359,7 @@ class DatabaseManager:
             # 将结果构建成字典
             fund_dict = {}
             for fund in results:
-                fund_dict[(fund['fund_id'], fund['fund_nm'])] = fund
+                fund_dict[(fund['fund_id'])] = fund
             
             return fund_dict
         except Exception as e:
