@@ -109,7 +109,7 @@ def run_analysis():
                 question += f"- 每个基金分析对象必须包含以下字段：\n"
                 question += f"  - fund_code: 基金代码（字符串类型）\n"
                 question += f"  - fund_name: 基金名称（字符串类型）\n"
-                question += f"  - analysis_content: 详细的分析结果（字符串类型，可包含Markdown格式）\n"
+                question += f"  - analysis_content: 详细的分析结果（字符串类型，可包含Markdown格式，并且需要美观的markdown文本）\n"
                 question += f"  - nav_dt: 净值日期（字符串类型，格式为YYYY-MM-DD）\n"
                 question += f"- 分析内容应详细全面，包括套利逻辑、盈利预期、优缺点分析等\n"
                 question += f"- 如果没有合适的套利机会，请返回：[]\n"
@@ -189,22 +189,37 @@ async def get_ai_analyses(date: str):
             estimate_value = fund_info.get('estimate_value', '')
             price = fund_info.get('price', '')
             apply_status = fund_info.get('apply_status', '')
-
+            discount_rt = fund_info.get('discount_rt', '')
             data_list.append({
                 "data": ai_analyse.analysis_content,
                 "title": f"{ai_analyse.fund_name}({ai_analyse.fund_code})",
                 "fund_name": ai_analyse.fund_name,
                 "fund_code": ai_analyse.fund_code,
                 "nav_dt": getattr(ai_analyse, 'nav_dt', ''), # 净值日期
-                "estimate_value": estimate_value, # t-1估值
-                "price": price, # 现价
-                "apply_status": apply_status # 申购状态
+                "estimate_value": estimate_value, # t-1估值（单位：元）
+                "price": price, # 现价（单位：元）
+                "apply_status": apply_status, # 申购状态
+                "discount_rt": discount_rt # 折扣率（单位：%）
             })
+
+        # 按照discount_rt降序排序
+        def get_discount_rt_value(item):
+            """获取discount_rt的数值用于排序"""
+            discount_rt = item.get('discount_rt', '')
+            if not discount_rt:
+                return -float('inf')  # 空值排在最后
+            try:
+                # 去除百分号并转换为浮点数
+                return float(discount_rt.replace('%', ''))
+            except (ValueError, AttributeError):
+                return -float('inf')  # 非数字值排在最后
+
+        data_list = sorted(data_list, key=get_discount_rt_value, reverse=True)
 
         return {
             "status": "success",
             "date": date,
-            "count": len(ai_analyses),
+            "count": len(data_list),
             "data": data_list
         }
         

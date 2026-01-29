@@ -317,7 +317,7 @@ class DatabaseManager:
         try:
             # 查询指定插入日期的所有基金信息
             query = """
-                SELECT fund_id, fund_nm, estimate_value, price, apply_status 
+                SELECT fund_id, fund_nm, estimate_value, price, discount_rt, apply_status 
                 FROM funds 
                 WHERE date = %s
             """
